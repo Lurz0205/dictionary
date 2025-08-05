@@ -110,6 +110,21 @@
             width: 1.25rem;
             height: 1.25rem;
         }
+        .ipa-text {
+            font-size: 1.25rem;
+            color: #4a5568; /* Darker gray for IPA */
+            margin-left: 0.75rem;
+        }
+        .clickable-word {
+            cursor: pointer;
+            color: #3b82f6; /* Blue for clickable words */
+            text-decoration: underline;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        .clickable-word:hover {
+            color: #2563eb; /* Darker blue on hover */
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
@@ -136,7 +151,7 @@
     <script type="module">
         // Đặt Gemini API Key của bạn vào đây
         // Bạn có thể lấy API Key từ Google AI Studio: https://aistudio.google.com/app/apikey
-        const GEMINI_API_KEY = "AIzaSyD_v3TF-xMvQzJkwNIu020D3pbPivWNy7s"; // THAY THẾ BẰNG API KEY CỦA BẠN
+        const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"; // THAY THẾ BẰNG API KEY CỦA BẠN
 
         const wordInput = document.getElementById('wordInput');
         const searchButton = document.getElementById('searchButton');
@@ -307,16 +322,18 @@
 
             const prompt = `Cung cấp một mục từ điển chi tiết cho từ tiếng Anh '${word}'. Bao gồm:
             1.  **Định nghĩa(s):** Giải thích tất cả các nghĩa khác nhau.
-            2.  **Ví dụ(s):** Cung cấp ít nhất một câu ví dụ cho mỗi định nghĩa.
-            3.  **Từ đồng nghĩa:** Liệt kê các từ đồng nghĩa phổ biến.
-            4.  **Từ trái nghĩa:** Liệt kê các từ trái nghĩa phổ biến.
-            5.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình.
-            6.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải.
-            7.  **Cấu trúc liên quan:** Bất kỳ cụm từ hoặc thành ngữ phổ biến nào liên quan đến từ đó.
+            2.  **Phiên âm Quốc tế (IPA):** Cung cấp phiên âm IPA của từ.
+            3.  **Ví dụ(s):** Cung cấp ít nhất một câu ví dụ cho mỗi định nghĩa.
+            4.  **Từ đồng nghĩa:** Liệt kê các từ đồng nghĩa phổ biến.
+            5.  **Từ trái nghĩa:** Liệt kê các từ trái nghĩa phổ biến.
+            6.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình.
+            7.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải.
+            8.  **Cấu trúc liên quan:** Bất kỳ cụm từ hoặc thành ngữ phổ biến nào liên quan đến từ đó.
             Nếu từ này bị sai chính tả, hãy gợi ý cách viết đúng và cung cấp mục từ điển cho từ đã sửa thay vì từ sai.
             Định dạng phản hồi dưới dạng JSON với các trường sau:
             {
                 "word": "từ đã tra cứu hoặc từ gợi ý đúng",
+                "ipa_pronunciation": "phiên âm quốc tế của từ",
                 "is_suggestion": true/false,
                 "suggestion_for": "từ gốc nếu có gợi ý",
                 "definitions": [
@@ -342,6 +359,7 @@
                         type: "OBJECT",
                         properties: {
                             "word": { "type": "STRING" },
+                            "ipa_pronunciation": { "type": "STRING" }, // New IPA field
                             "is_suggestion": { "type": "BOOLEAN" },
                             "suggestion_for": { "type": "STRING" },
                             "definitions": {
@@ -372,7 +390,7 @@
                             "error": { "type": "STRING" }
                         },
                         "propertyOrdering": [
-                            "word", "is_suggestion", "suggestion_for", "definitions",
+                            "word", "ipa_pronunciation", "is_suggestion", "suggestion_for", "definitions",
                             "synonyms", "antonyms", "usage_notes", "common_errors",
                             "related_structures", "error"
                         ]
@@ -459,7 +477,10 @@
 
             let htmlContent = `
                 <div class="result-section">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-4">${data.word.charAt(0).toUpperCase() + data.word.slice(1)}</h2>
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4">
+                        ${data.word.charAt(0).toUpperCase() + data.word.slice(1)}
+                        ${data.ipa_pronunciation ? `<span class="ipa-text">[${data.ipa_pronunciation}]</span>` : ''}
+                    </h2>
                     <div class="flex items-center gap-2 mb-4">
                         <button id="pronounceButton" class="audio-button">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
@@ -489,12 +510,18 @@
                 htmlContent += `</div>`;
             }
 
+            // Function to create clickable words
+            const createClickableWords = (wordList) => {
+                if (!wordList || wordList.length === 0) return '';
+                return wordList.map(word => `<span class="clickable-word" data-word="${word}">${word}</span>`).join(', ');
+            };
+
             if (data.synonyms && data.synonyms.length > 0) {
-                htmlContent += `<div class="result-section"><h3>Từ đồng nghĩa</h3><div class="result-item"><p>${data.synonyms.join(', ')}</p></div></div>`;
+                htmlContent += `<div class="result-section"><h3>Từ đồng nghĩa</h3><div class="result-item"><p>${createClickableWords(data.synonyms)}</p></div></div>`;
             }
 
             if (data.antonyms && data.antonyms.length > 0) {
-                htmlContent += `<div class="result-section"><h3>Từ trái nghĩa</h3><div class="result-item"><p>${data.antonyms.join(', ')}</p></div></div>`;
+                htmlContent += `<div class="result-section"><h3>Từ trái nghĩa</h3><div class="result-item"><p>${createClickableWords(data.antonyms)}</p></div></div>`;
             }
 
             if (data.usage_notes) {
@@ -517,6 +544,17 @@
             if (pronounceButton) {
                 pronounceButton.addEventListener('click', () => playAudio(data.word));
             }
+
+            // Add event listeners for clickable synonyms/antonyms
+            document.querySelectorAll('.clickable-word').forEach(span => {
+                span.addEventListener('click', (event) => {
+                    const clickedWord = event.target.dataset.word;
+                    if (clickedWord) {
+                        wordInput.value = clickedWord; // Set the input field to the clicked word
+                        fetchDefinition(clickedWord); // Perform search for the clicked word
+                    }
+                });
+            });
         }
 
         searchButton.addEventListener('click', () => {
