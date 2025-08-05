@@ -125,6 +125,10 @@
         .clickable-word:hover {
             color: #2563eb; /* Darker blue on hover */
         }
+        .meaning-type {
+            font-weight: 600;
+            color: #4f46e5; /* Indigo color for part of speech */
+        }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
@@ -321,14 +325,16 @@
             errorMessageDiv.classList.add('hidden');
 
             const prompt = `Cung cấp một mục từ điển chi tiết cho từ tiếng Anh '${word}'. Bao gồm:
-            1.  **Định nghĩa(s):** Giải thích tất cả các nghĩa khác nhau.
-            2.  **Phiên âm Quốc tế (IPA):** Cung cấp phiên âm IPA của từ.
-            3.  **Ví dụ(s):** Cung cấp ít nhất một câu ví dụ cho mỗi định nghĩa.
-            4.  **Từ đồng nghĩa:** Liệt kê các từ đồng nghĩa phổ biến.
-            5.  **Từ trái nghĩa:** Liệt kê các từ trái nghĩa phổ biến.
-            6.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình.
-            7.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải.
-            8.  **Cấu trúc liên quan:** Bất kỳ cụm từ hoặc thành ngữ phổ biến nào liên quan đến từ đó.
+            1.  **Định nghĩa(s):** Giải thích tất cả các nghĩa khác nhau, bao gồm cả nghĩa tiếng Việt và mô tả bằng tiếng Anh.
+            2.  **Loại từ:** Chỉ rõ loại từ (danh từ, động từ, tính từ, trạng từ...).
+            3.  **Phiên âm Quốc tế (IPA):** Cung cấp phiên âm IPA của từ.
+            4.  **Ví dụ(s):** Cung cấp ít nhất một câu ví dụ cho mỗi định nghĩa.
+            5.  **Từ đồng nghĩa:** Liệt kê các từ đồng nghĩa phổ biến.
+            6.  **Từ trái nghĩa:** Liệt kê các từ trái nghĩa phổ biến.
+            7.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình, viết bằng tiếng Việt.
+            8.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải, viết bằng tiếng Việt.
+            9.  **Cấu trúc liên quan:** Liệt kê các cấu trúc liên quan và giải thích ngắn gọn bằng tiếng Việt.
+            10. **Tổng kết các nghĩa quan trọng:** Tóm tắt các nghĩa chính của từ (nghĩa tiếng Việt) kèm loại từ.
             Nếu từ này bị sai chính tả, hãy gợi ý cách viết đúng và cung cấp mục từ điển cho từ đã sửa thay vì từ sai.
             Định dạng phản hồi dưới dạng JSON với các trường sau:
             {
@@ -338,15 +344,23 @@
                 "suggestion_for": "từ gốc nếu có gợi ý",
                 "definitions": [
                     {
-                        "meaning": "định nghĩa",
+                        "part_of_speech": "loại từ (ví dụ: Danh từ, Động từ)",
+                        "vietnamese_meaning": "nghĩa tiếng Việt",
+                        "english_description": "mô tả bằng câu tiếng Anh",
                         "examples": ["ví dụ 1", "ví dụ 2"]
                     }
                 ],
                 "synonyms": ["từ đồng nghĩa 1", "từ đồng nghĩa 2"],
                 "antonyms": ["từ trái nghĩa 1", "từ trái nghĩa 2"],
-                "usage_notes": "ghi chú sử dụng",
-                "common_errors": "lỗi thường gặp",
-                "related_structures": "cấu trúc liên quan"
+                "usage_notes": "ghi chú sử dụng bằng tiếng Việt",
+                "common_errors": "lỗi thường gặp bằng tiếng Việt",
+                "related_structures": [
+                    {"structure": "cấu trúc", "meaning": "giải thích bằng tiếng Việt"}
+                ],
+                "summary_meanings": [
+                    {"part_of_speech": "loại từ", "meaning": "nghĩa tiếng Việt"}
+                ],
+                "error": "thông báo lỗi nếu có"
             }
             Nếu không tìm thấy từ, trả về JSON rỗng hoặc một thông báo lỗi trong trường 'error'.`;
 
@@ -359,7 +373,7 @@
                         type: "OBJECT",
                         properties: {
                             "word": { "type": "STRING" },
-                            "ipa_pronunciation": { "type": "STRING" }, // New IPA field
+                            "ipa_pronunciation": { "type": "STRING" },
                             "is_suggestion": { "type": "BOOLEAN" },
                             "suggestion_for": { "type": "STRING" },
                             "definitions": {
@@ -367,13 +381,15 @@
                                 "items": {
                                     "type": "OBJECT",
                                     "properties": {
-                                        "meaning": { "type": "STRING" },
+                                        "part_of_speech": { "type": "STRING" },
+                                        "vietnamese_meaning": { "type": "STRING" },
+                                        "english_description": { "type": "STRING" },
                                         "examples": {
                                             "type": "ARRAY",
                                             "items": { "type": "STRING" }
                                         }
                                     },
-                                    "propertyOrdering": ["meaning", "examples"]
+                                    "propertyOrdering": ["part_of_speech", "vietnamese_meaning", "english_description", "examples"]
                                 }
                             },
                             "synonyms": {
@@ -386,13 +402,34 @@
                             },
                             "usage_notes": { "type": "STRING" },
                             "common_errors": { "type": "STRING" },
-                            "related_structures": { "type": "STRING" },
+                            "related_structures": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "structure": { "type": "STRING" },
+                                        "meaning": { "type": "STRING" }
+                                    },
+                                    "propertyOrdering": ["structure", "meaning"]
+                                }
+                            },
+                            "summary_meanings": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "part_of_speech": { "type": "STRING" },
+                                        "meaning": { "type": "STRING" }
+                                    },
+                                    "propertyOrdering": ["part_of_speech", "meaning"]
+                                }
+                            },
                             "error": { "type": "STRING" }
                         },
                         "propertyOrdering": [
                             "word", "ipa_pronunciation", "is_suggestion", "suggestion_for", "definitions",
                             "synonyms", "antonyms", "usage_notes", "common_errors",
-                            "related_structures", "error"
+                            "related_structures", "summary_meanings", "error"
                         ]
                     }
                 }
@@ -500,7 +537,8 @@
                 data.definitions.forEach((def, index) => {
                     htmlContent += `
                         <div class="result-item">
-                            <p><strong>${index + 1}.</strong> ${def.meaning}</p>
+                            <p><strong>${index + 1}.</strong> <span class="meaning-type">(${def.part_of_speech})</span> ${def.vietnamese_meaning}</p>
+                            <p class="text-gray-700">${def.english_description}</p>
                             ${def.examples && def.examples.length > 0 ? `<p class="text-gray-600 italic">Ví dụ:</p><ul>` : ''}
                             ${def.examples ? def.examples.map(ex => `<li class="text-gray-600 italic ml-4 list-disc">${ex}</li>`).join('') : ''}
                             ${def.examples && def.examples.length > 0 ? `</ul>` : ''}
@@ -532,8 +570,20 @@
                 htmlContent += `<div class="result-section"><h3>Lỗi thường gặp</h3><div class="result-item"><p>${data.common_errors}</p></div></div>`;
             }
 
-            if (data.related_structures) {
-                htmlContent += `<div class="result-section"><h3>Cấu trúc liên quan</h3><div class="result-item"><p>${data.related_structures}</p></div></div>`;
+            if (data.related_structures && data.related_structures.length > 0) {
+                htmlContent += `<div class="result-section"><h3>Cấu trúc liên quan</h3><div class="result-item"><ul>`;
+                data.related_structures.forEach(item => {
+                    htmlContent += `<li class="mb-2"><strong>${item.structure}:</strong> ${item.meaning}</li>`;
+                });
+                htmlContent += `</ul></div></div>`;
+            }
+
+            if (data.summary_meanings && data.summary_meanings.length > 0) {
+                htmlContent += `<div class="result-section"><h3>Tổng kết các nghĩa quan trọng</h3><div class="result-item"><ul>`;
+                data.summary_meanings.forEach((item, index) => {
+                    htmlContent += `<li><strong>${index + 1}.</strong> <span class="meaning-type">(${item.part_of_speech})</span> ${item.meaning}</li>`;
+                });
+                htmlContent += `</ul></div></div>`;
             }
 
             htmlContent += `</div>`; // Close main result-section div
