@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Từ điển AI</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+        }
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .search-input {
+            border: 2px solid #cbd5e1; /* Light gray border */
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            width: 100%;
+            font-size: 1.125rem;
+            transition: border-color 0.3s ease;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #3b82f6; /* Blue focus border */
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        }
+        .search-button {
+            background-color: #3b82f6; /* Blue button */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+        }
+        .search-button:hover {
+            background-color: #2563eb; /* Darker blue on hover */
+            transform: translateY(-2px);
+        }
+        .search-button:active {
+            transform: translateY(0);
+        }
+        .result-section h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b; /* Dark slate text */
+            margin-bottom: 0.75rem;
+            border-bottom: 2px solid #e2e8f0; /* Light border under heading */
+            padding-bottom: 0.5rem;
+        }
+        .result-item {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background-color: #f8fafc; /* Very light blue-gray for items */
+            border-radius: 0.75rem;
+            border: 1px solid #e2e8f0;
+        }
+        .result-item p {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .result-item strong {
+            color: #1e293b;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .error-message {
+            color: #ef4444; /* Red error text */
+            background-color: #fee2e2; /* Light red background */
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            border: 1px solid #fca5a5;
+        }
+        .audio-button {
+            background-color: #10b981; /* Green for audio */
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 2px 5px rgba(16, 185, 129, 0.3);
+        }
+        .audio-button:hover {
+            background-color: #059669; /* Darker green on hover */
+        }
+        .audio-button svg {
+            width: 1.25rem;
+            height: 1.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="container">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-6">Từ điển AI</h1>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-8">
+            <input type="text" id="wordInput" placeholder="Nhập từ tiếng Anh..." class="search-input flex-grow">
+            <button id="searchButton" class="search-button flex-shrink-0">Tra cứu</button>
+        </div>
+
+        <div id="loadingIndicator" class="hidden flex justify-center items-center mb-4">
+            <div class="loading-spinner"></div>
+            <span class="ml-3 text-gray-600">Đang tra cứu...</span>
+        </div>
+
+        <div id="errorMessage" class="hidden error-message"></div>
+
+        <div id="results" class="space-y-6">
+            <!-- Kết quả sẽ được hiển thị ở đây -->
+        </div>
+    </div>
+
+    <script type="module">
+        // Đặt Gemini API Key của bạn vào đây
+        // Bạn có thể lấy API Key từ Google AI Studio: https://aistudio.google.com/app/apikey
+        const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE"; // THAY THẾ BẰNG API KEY CỦA BẠN
+
+        const wordInput = document.getElementById('wordInput');
+        const searchButton = document.getElementById('searchButton');
+        const resultsDiv = document.getElementById('results');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const errorMessageDiv = document.getElementById('errorMessage');
+
+        // Helper function to convert base64 to ArrayBuffer
+        function base64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // Helper function to convert PCM to WAV format
+        function pcmToWav(pcmData, sampleRate) {
+            const numChannels = 1; // Mono audio
+            const bytesPerSample = 2; // 16-bit PCM
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+
+            const wavBuffer = new ArrayBuffer(44 + pcmData.byteLength);
+            const view = new DataView(wavBuffer);
+
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF'); // ChunkID
+            view.setUint32(4, 36 + pcmData.byteLength, true); // ChunkSize
+            writeString(view, 8, 'WAVE'); // Format
+
+            // FMT sub-chunk
+            writeString(view, 12, 'fmt '); // Subchunk1ID
+            view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+            view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+            view.setUint16(22, numChannels, true); // NumChannels
+            view.setUint32(24, sampleRate, true); // SampleRate
+            view.setUint32(28, byteRate, true); // ByteRate
+            view.setUint16(32, blockAlign, true); // BlockAlign
+            view.setUint16(34, bytesPerSample * 8, true); // BitsPerSample
+
+            // DATA sub-chunk
+            writeString(view, 36, 'data'); // Subchunk2ID
+            view.setUint32(40, pcmData.byteLength, true); // Subchunk2Size
+
+            // Write PCM data
+            const pcmBytes = new Uint8Array(pcmData);
+            for (let i = 0; i < pcmBytes.length; i++) {
+                view.setUint8(44 + i, pcmBytes[i]);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        // Function to play audio
+        async function playAudio(text) {
+            if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+                errorMessageDiv.textContent = "Vui lòng đặt Gemini API Key của bạn vào mã nguồn để sử dụng tính năng phát âm.";
+                errorMessageDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const payload = {
+                    contents: [{
+                        parts: [{ text: text }]
+                    }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: { voiceName: "Zephyr" } // Bạn có thể thử các giọng khác như "Puck", "Charon", "Kore"
+                            }
+                        }
+                    },
+                    model: "gemini-2.5-flash-preview-tts"
+                };
+
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`; // Sử dụng API Key đã nhúng
+
+                let response;
+                let retries = 0;
+                const maxRetries = 5;
+                const initialDelay = 1000; // 1 second
+
+                while (retries < maxRetries) {
+                    try {
+                        response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.ok) {
+                            break; // Success, exit loop
+                        } else if (response.status === 429) { // Too Many Requests
+                            const delay = initialDelay * Math.pow(2, retries);
+                            console.warn(`Rate limit hit. Retrying in ${delay / 1000} seconds...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            retries++;
+                        } else {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                    } catch (error) {
+                        console.error("Fetch error:", error);
+                        if (retries === maxRetries - 1) throw error; // Re-throw if last retry
+                        const delay = initialDelay * Math.pow(2, retries);
+                        console.warn(`Error during fetch. Retrying in ${delay / 1000} seconds...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        retries++;
+                    }
+                }
+
+                if (!response || !response.ok) {
+                    throw new Error("Failed to fetch audio after multiple retries.");
+                }
+
+                const result = await response.json();
+                const part = result?.candidates?.[0]?.content?.parts?.[0];
+                const audioData = part?.inlineData?.data;
+                const mimeType = part?.inlineData?.mimeType;
+
+                if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                    const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                    const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000; // Default to 16kHz if not found
+                    const pcmDataBuffer = base64ToArrayBuffer(audioData);
+                    
+                    // The API returns signed PCM16 audio data.
+                    const pcm16 = new Int16Array(pcmDataBuffer);
+                    const wavBlob = pcmToWav(pcm16, sampleRate);
+                    const audioUrl = URL.createObjectURL(wavBlob);
+
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                } else {
+                    console.error("Invalid audio data or MIME type from API:", part);
+                    errorMessageDiv.textContent = "Không thể phát âm thanh cho từ này.";
+                    errorMessageDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error("Lỗi khi phát âm thanh:", error);
+                errorMessageDiv.textContent = "Lỗi khi phát âm thanh. Vui lòng thử lại.";
+                errorMessageDiv.classList.remove('hidden');
+            }
+        }
+
+
+        // Function to fetch definition from Gemini API
+        async function fetchDefinition(word) {
+            if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+                errorMessageDiv.textContent = "Vui lòng đặt Gemini API Key của bạn vào mã nguồn để tra cứu từ điển.";
+                errorMessageDiv.classList.remove('hidden');
+                resultsDiv.innerHTML = '';
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            resultsDiv.innerHTML = ''; // Clear previous results
+            errorMessageDiv.classList.add('hidden');
+
+            const prompt = `Cung cấp một mục từ điển chi tiết cho từ tiếng Anh '${word}'. Bao gồm:
+            1.  **Định nghĩa(s):** Giải thích tất cả các nghĩa khác nhau.
+            2.  **Ví dụ(s):** Cung cấp ít nhất một câu ví dụ cho mỗi định nghĩa.
+            3.  **Từ đồng nghĩa:** Liệt kê các từ đồng nghĩa phổ biến.
+            4.  **Từ trái nghĩa:** Liệt kê các từ trái nghĩa phổ biến.
+            5.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình.
+            6.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải.
+            7.  **Cấu trúc liên quan:** Bất kỳ cụm từ hoặc thành ngữ phổ biến nào liên quan đến từ đó.
+            Nếu từ này bị sai chính tả, hãy gợi ý cách viết đúng và cung cấp mục từ điển cho từ đã sửa thay vì từ sai.
+            Định dạng phản hồi dưới dạng JSON với các trường sau:
+            {
+                "word": "từ đã tra cứu hoặc từ gợi ý đúng",
+                "is_suggestion": true/false,
+                "suggestion_for": "từ gốc nếu có gợi ý",
+                "definitions": [
+                    {
+                        "meaning": "định nghĩa",
+                        "examples": ["ví dụ 1", "ví dụ 2"]
+                    }
+                ],
+                "synonyms": ["từ đồng nghĩa 1", "từ đồng nghĩa 2"],
+                "antonyms": ["từ trái nghĩa 1", "từ trái nghĩa 2"],
+                "usage_notes": "ghi chú sử dụng",
+                "common_errors": "lỗi thường gặp",
+                "related_structures": "cấu trúc liên quan"
+            }
+            Nếu không tìm thấy từ, trả về JSON rỗng hoặc một thông báo lỗi trong trường 'error'.`;
+
+            const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            const payload = {
+                contents: chatHistory,
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "word": { "type": "STRING" },
+                            "is_suggestion": { "type": "BOOLEAN" },
+                            "suggestion_for": { "type": "STRING" },
+                            "definitions": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "meaning": { "type": "STRING" },
+                                        "examples": {
+                                            "type": "ARRAY",
+                                            "items": { "type": "STRING" }
+                                        }
+                                    },
+                                    "propertyOrdering": ["meaning", "examples"]
+                                }
+                            },
+                            "synonyms": {
+                                "type": "ARRAY",
+                                "items": { "type": "STRING" }
+                            },
+                            "antonyms": {
+                                "type": "ARRAY",
+                                "items": { "type": "STRING" }
+                            },
+                            "usage_notes": { "type": "STRING" },
+                            "common_errors": { "type": "STRING" },
+                            "related_structures": { "type": "STRING" },
+                            "error": { "type": "STRING" }
+                        },
+                        "propertyOrdering": [
+                            "word", "is_suggestion", "suggestion_for", "definitions",
+                            "synonyms", "antonyms", "usage_notes", "common_errors",
+                            "related_structures", "error"
+                        ]
+                    }
+                }
+            };
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`; // Sử dụng API Key đã nhúng
+
+            let response;
+            let retries = 0;
+            const maxRetries = 5;
+            const initialDelay = 1000; // 1 second
+
+            while (retries < maxRetries) {
+                try {
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        break; // Success, exit loop
+                    } else if (response.status === 429) { // Too Many Requests
+                        const delay = initialDelay * Math.pow(2, retries);
+                        console.warn(`Rate limit hit. Retrying in ${delay / 1000} seconds...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        retries++;
+                    } else {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error("Fetch error:", error);
+                    if (retries === maxRetries - 1) throw error; // Re-throw if last retry
+                    const delay = initialDelay * Math.pow(2, retries);
+                    console.warn(`Error during fetch. Retrying in ${delay / 1000} seconds...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    retries++;
+                }
+            }
+
+            loadingIndicator.classList.add('hidden');
+
+            if (!response || !response.ok) {
+                errorMessageDiv.textContent = "Không thể kết nối với API. Vui lòng thử lại sau.";
+                errorMessageDiv.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const jsonString = result.candidates[0].content.parts[0].text;
+                    const data = JSON.parse(jsonString);
+                    displayResults(data);
+                } else {
+                    errorMessageDiv.textContent = "Không tìm thấy định nghĩa cho từ này. Vui lòng thử từ khác.";
+                    errorMessageDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error("Lỗi phân tích JSON hoặc dữ liệu không hợp lệ:", error);
+                errorMessageDiv.textContent = "Đã xảy ra lỗi khi xử lý kết quả. Vui lòng thử lại.";
+                errorMessageDiv.classList.remove('hidden');
+            }
+        }
+
+        function displayResults(data) {
+            resultsDiv.innerHTML = ''; // Clear previous results
+
+            if (data.error) {
+                errorMessageDiv.textContent = data.error;
+                errorMessageDiv.classList.remove('hidden');
+                return;
+            }
+
+            if (!data.word) {
+                errorMessageDiv.textContent = "Không tìm thấy định nghĩa cho từ này. Vui lòng thử từ khác.";
+                errorMessageDiv.classList.remove('hidden');
+                return;
+            }
+
+            let htmlContent = `
+                <div class="result-section">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4">${data.word.charAt(0).toUpperCase() + data.word.slice(1)}</h2>
+                    <div class="flex items-center gap-2 mb-4">
+                        <button id="pronounceButton" class="audio-button">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.5A2.25 2.25 0 0 0 2.25 9v6a2.25 2.25 0 0 0 2.25 2.25h2.94l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06ZM18.06 14.72a.75.75 0 1 0 1.06-1.06l-1.06-1.06 1.06-1.06a.75.75 0 1 0-1.06-1.06l-1.06 1.06-1.06-1.06a.75.75 0 1 0-1.06 1.06l1.06 1.06-1.06 1.06a.75.75 0 1 0 1.06 1.06l1.06-1.06 1.06 1.06Z" />
+                            </svg>
+                            Phát âm
+                        </button>
+                    </div>
+            `;
+
+            if (data.is_suggestion && data.suggestion_for) {
+                htmlContent += `<p class="text-orange-600 mb-4">Gợi ý: Bạn có thể muốn tìm kiếm từ "<strong>${data.word}</strong>" thay vì "<em>${data.suggestion_for}</em>".</p>`;
+            }
+
+            if (data.definitions && data.definitions.length > 0) {
+                htmlContent += `<div class="result-section"><h3>Định nghĩa & Ví dụ</h3>`;
+                data.definitions.forEach((def, index) => {
+                    htmlContent += `
+                        <div class="result-item">
+                            <p><strong>${index + 1}.</strong> ${def.meaning}</p>
+                            ${def.examples && def.examples.length > 0 ? `<p class="text-gray-600 italic">Ví dụ:</p><ul>` : ''}
+                            ${def.examples ? def.examples.map(ex => `<li class="text-gray-600 italic ml-4 list-disc">${ex}</li>`).join('') : ''}
+                            ${def.examples && def.examples.length > 0 ? `</ul>` : ''}
+                        </div>
+                    `;
+                });
+                htmlContent += `</div>`;
+            }
+
+            if (data.synonyms && data.synonyms.length > 0) {
+                htmlContent += `<div class="result-section"><h3>Từ đồng nghĩa</h3><div class="result-item"><p>${data.synonyms.join(', ')}</p></div></div>`;
+            }
+
+            if (data.antonyms && data.antonyms.length > 0) {
+                htmlContent += `<div class="result-section"><h3>Từ trái nghĩa</h3><div class="result-item"><p>${data.antonyms.join(', ')}</p></div></div>`;
+            }
+
+            if (data.usage_notes) {
+                htmlContent += `<div class="result-section"><h3>Ghi chú sử dụng</h3><div class="result-item"><p>${data.usage_notes}</p></div></div>`;
+            }
+
+            if (data.common_errors) {
+                htmlContent += `<div class="result-section"><h3>Lỗi thường gặp</h3><div class="result-item"><p>${data.common_errors}</p></div></div>`;
+            }
+
+            if (data.related_structures) {
+                htmlContent += `<div class="result-section"><h3>Cấu trúc liên quan</h3><div class="result-item"><p>${data.related_structures}</p></div></div>`;
+            }
+
+            htmlContent += `</div>`; // Close main result-section div
+            resultsDiv.innerHTML = htmlContent;
+
+            // Add event listener for pronunciation button
+            const pronounceButton = document.getElementById('pronounceButton');
+            if (pronounceButton) {
+                pronounceButton.addEventListener('click', () => playAudio(data.word));
+            }
+        }
+
+        searchButton.addEventListener('click', () => {
+            const word = wordInput.value.trim();
+            if (word) {
+                fetchDefinition(word);
+            } else {
+                errorMessageDiv.textContent = "Vui lòng nhập một từ để tra cứu.";
+                errorMessageDiv.classList.remove('hidden');
+                resultsDiv.innerHTML = '';
+            }
+        });
+
+        wordInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchButton.click();
+            }
+        });
+    </script>
+</body>
+</html>
