@@ -115,19 +115,30 @@
             color: #4a5568; /* Darker gray for IPA */
             margin-left: 0.75rem;
         }
-        .clickable-word {
+        .clickable-word-tag { /* New style for clickable word tags */
+            display: inline-block;
+            background-color: #e0e7ff; /* Light blue background */
+            color: #4f46e5; /* Indigo text */
+            padding: 0.4rem 0.8rem;
+            border-radius: 9999px; /* Fully rounded */
+            margin: 0.25rem;
             cursor: pointer;
-            color: #3b82f6; /* Blue for clickable words */
-            text-decoration: underline;
+            transition: background-color 0.2s ease, transform 0.1s ease;
             font-weight: 500;
-            transition: color 0.2s ease;
+            font-size: 0.9rem;
+            border: 1px solid #c7d2fe;
         }
-        .clickable-word:hover {
-            color: #2563eb; /* Darker blue on hover */
+        .clickable-word-tag:hover {
+            background-color: #c7d2fe; /* Slightly darker blue on hover */
+            transform: translateY(-1px);
         }
         .meaning-type {
             font-weight: 600;
             color: #4f46e5; /* Indigo color for part of speech */
+        }
+        .formatted-text-block { /* New style for notes/errors */
+            white-space: pre-wrap; /* Preserve whitespace and line breaks */
+            line-height: 1.8;
         }
     </style>
 </head>
@@ -155,7 +166,7 @@
     <script type="module">
         // Đặt Gemini API Key của bạn vào đây
         // Bạn có thể lấy API Key từ Google AI Studio: https://aistudio.google.com/app/apikey
-        const GEMINI_API_KEY = "AIzaSyD_v3TF-xMvQzJkwNIu020D3pbPivWNy7s"; // THAY THẾ BẰNG API KEY CỦA BẠN
+        const GEMINI_API_KEY = "AIzaSyD_v3TF-xMvQzJkwNIu020D3pbPivWNy7s"; // API Key đã được nhúng
 
         const wordInput = document.getElementById('wordInput');
         const searchButton = document.getElementById('searchButton');
@@ -331,8 +342,8 @@
             4.  **Ví dụ(s):** Cung cấp ít nhất một câu ví dụ cho mỗi định nghĩa.
             5.  **Từ đồng nghĩa:** Liệt kê các từ đồng nghĩa phổ biến.
             6.  **Từ trái nghĩa:** Liệt kê các từ trái nghĩa phổ biến.
-            7.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình, viết bằng tiếng Việt.
-            8.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải, viết bằng tiếng Việt.
+            7.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình, viết bằng tiếng Việt. Mỗi ý nên là một đoạn riêng biệt.
+            8.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải, viết bằng tiếng Việt. Mỗi lỗi nên là một đoạn riêng biệt.
             9.  **Cấu trúc liên quan:** Liệt kê các cấu trúc liên quan và giải thích ngắn gọn bằng tiếng Việt.
             10. **Tổng kết các nghĩa quan trọng:** Tóm tắt các nghĩa chính của từ (nghĩa tiếng Việt) kèm loại từ.
             Nếu từ này bị sai chính tả, hãy gợi ý cách viết đúng và cung cấp mục từ điển cho từ đã sửa thay vì từ sai.
@@ -548,26 +559,28 @@
                 htmlContent += `</div>`;
             }
 
-            // Function to create clickable words
-            const createClickableWords = (wordList) => {
+            // Function to create clickable word tags
+            const createClickableWordTags = (wordList) => {
                 if (!wordList || wordList.length === 0) return '';
-                return wordList.map(word => `<span class="clickable-word" data-word="${word}">${word}</span>`).join(', ');
+                return wordList.map(word => `<span class="clickable-word-tag" data-word="${word}">${word}</span>`).join('');
             };
 
             if (data.synonyms && data.synonyms.length > 0) {
-                htmlContent += `<div class="result-section"><h3>Từ đồng nghĩa</h3><div class="result-item"><p>${createClickableWords(data.synonyms)}</p></div></div>`;
+                htmlContent += `<div class="result-section"><h3>Từ đồng nghĩa</h3><div class="result-item flex flex-wrap">${createClickableWordTags(data.synonyms)}</div></div>`;
             }
 
             if (data.antonyms && data.antonyms.length > 0) {
-                htmlContent += `<div class="result-section"><h3>Từ trái nghĩa</h3><div class="result-item"><p>${createClickableWords(data.antonyms)}</p></div></div>`;
+                htmlContent += `<div class="result-section"><h3>Từ trái nghĩa</h3><div class="result-item flex flex-wrap">${createClickableWordTags(data.antonyms)}</div></div>`;
             }
 
             if (data.usage_notes) {
-                htmlContent += `<div class="result-section"><h3>Ghi chú sử dụng</h3><div class="result-item"><p>${data.usage_notes}</p></div></div>`;
+                // Use pre-wrap to preserve line breaks from the API response
+                htmlContent += `<div class="result-section"><h3>Ghi chú sử dụng</h3><div class="result-item"><p class="formatted-text-block">${data.usage_notes}</p></div></div>`;
             }
 
             if (data.common_errors) {
-                htmlContent += `<div class="result-section"><h3>Lỗi thường gặp</h3><div class="result-item"><p>${data.common_errors}</p></div></div>`;
+                // Use pre-wrap to preserve line breaks from the API response
+                htmlContent += `<div class="result-section"><h3>Lỗi thường gặp</h3><div class="result-item"><p class="formatted-text-block">${data.common_errors}</p></div></div>`;
             }
 
             if (data.related_structures && data.related_structures.length > 0) {
@@ -596,7 +609,7 @@
             }
 
             // Add event listeners for clickable synonyms/antonyms
-            document.querySelectorAll('.clickable-word').forEach(span => {
+            document.querySelectorAll('.clickable-word-tag').forEach(span => {
                 span.addEventListener('click', (event) => {
                     const clickedWord = event.target.dataset.word;
                     if (clickedWord) {
