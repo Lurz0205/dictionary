@@ -136,9 +136,17 @@
             font-weight: 600;
             color: #4f46e5; /* Indigo color for part of speech */
         }
-        .formatted-text-block { /* New style for notes/errors */
-            white-space: pre-wrap; /* Preserve whitespace and line breaks */
-            line-height: 1.8;
+        .formatted-text-block ul { /* Style for unordered lists in notes/errors */
+            list-style: disc; /* Use disc for bullet points */
+            margin-left: 1.5rem; /* Indent list items */
+        }
+        .formatted-text-block ol { /* Style for ordered lists in notes/errors */
+            list-style: decimal; /* Use decimal for numbered lists */
+            margin-left: 1.5rem; /* Indent list items */
+        }
+        .formatted-text-block li {
+            margin-bottom: 0.5rem; /* Space between list items */
+            line-height: 1.6;
         }
     </style>
 </head>
@@ -321,13 +329,55 @@
             }
         }
 
+        // Function to process and format text for usage_notes and common_errors
+        function formatNotesAndErrors(text) {
+            if (!text) return '';
+            // Split by bullet points, numbered lists, or newlines
+            const rawLines = text.split(/[\n\r]+|(?<=\.)\s*(?=\d+\.\s*)|(?<=\.)\s*(?=[-*]\s*)/).filter(line => line.trim() !== '');
+            let formattedHtml = '<ul>';
+
+            rawLines.forEach(line => {
+                let processedLine = line.trim();
+
+                // Remove leading numbers/bullets if any, as we're adding our own list
+                processedLine = processedLine.replace(/^(\d+\.\s*|[-*]\s*)/, '');
+
+                // Replace 'word' with <strong>word</strong> (only if it's an English word)
+                // This regex attempts to find words that are typically English (alphabetic characters)
+                // and are enclosed in single quotes, then bolds them.
+                processedLine = processedLine.replace(/'([a-zA-Z\s-]+)'/g, '<strong>$1</strong>');
+
+                // Replace (phrase) with <em>(phrase)</em>
+                processedLine = processedLine.replace(/\(([^)]+)\)/g, '<em>($1)</em>');
+
+                // Remove any remaining double quotes not handled by the above (if the model still sends them)
+                processedLine = processedLine.replace(/"/g, '');
+
+
+                // Ensure no nesting of strong/em if the model already added them, or if our regex creates them
+                processedLine = processedLine.replace(/<strong><em>(.*?)<\/em><\/strong>/g, '<strong>$1</strong>');
+                processedLine = processedLine.replace(/<em><strong>(.*?)<\/strong><\/em>/g, '<em>$1</em>');
+
+                // If the line contains a colon followed by a space, and is not already a list item,
+                // assume it's a key-value pair and bold the key.
+                processedLine = processedLine.replace(/^([^:]+):\s*(.*)$/, '<strong>$1:</strong> $2');
+
+
+                if (processedLine) { // Only add if line is not empty after processing
+                    formattedHtml += `<li>${processedLine}</li>`;
+                }
+            });
+
+            formattedHtml += '</ul>';
+            return formattedHtml;
+        }
+
 
         // Function to fetch definition from Gemini API
         async function fetchDefinition(word) {
             if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
                 errorMessageDiv.textContent = "Vui lòng đặt Gemini API Key của bạn vào mã nguồn để tra cứu từ điển.";
                 errorMessageDiv.classList.remove('hidden');
-                resultsDiv.innerHTML = '';
                 return;
             }
 
@@ -342,8 +392,8 @@
             4.  **Ví dụ(s):** Cung cấp ít nhất một câu ví dụ cho mỗi định nghĩa.
             5.  **Từ đồng nghĩa:** Liệt kê các từ đồng nghĩa phổ biến.
             6.  **Từ trái nghĩa:** Liệt kê các từ trái nghĩa phổ biến.
-            7.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình, viết bằng tiếng Việt. Mỗi ý nên là một đoạn riêng biệt.
-            8.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải, viết bằng tiếng Việt. Mỗi lỗi nên là một đoạn riêng biệt.
+            7.  **Ghi chú sử dụng:** Các cụm từ thông dụng, cấu trúc ngữ pháp và ngữ cảnh điển hình, viết bằng tiếng Việt. Mỗi ý phải được liệt kê bằng dấu gạch đầu dòng (-) và nằm trên một dòng riêng biệt. Chỉ sử dụng thẻ HTML <strong> cho chữ in đậm (chỉ cho cụm tiếng Anh) và <em> cho chữ in nghiêng (chỉ cho cụm trong dấu ngoặc đơn). Không sử dụng dấu ngoặc kép hoặc dấu nháy đơn.
+            8.  **Lỗi thường gặp:** Những lỗi mà người học thường mắc phải, viết bằng tiếng Việt. Mỗi lỗi phải được liệt kê bằng dấu gạch đầu dòng (-) và nằm trên một dòng riêng biệt. Chỉ sử dụng thẻ HTML <strong> cho chữ in đậm (chỉ cho cụm tiếng Anh) và <em> cho chữ in nghiêng (chỉ cho cụm trong dấu ngoặc đơn). Không sử dụng dấu ngoặc kép hoặc dấu nháy đơn.
             9.  **Cấu trúc liên quan:** Liệt kê các cấu trúc liên quan và giải thích ngắn gọn bằng tiếng Việt.
             10. **Tổng kết các nghĩa quan trọng:** Tóm tắt các nghĩa chính của từ (nghĩa tiếng Việt) kèm loại từ.
             Nếu từ này bị sai chính tả, hãy gợi ý cách viết đúng và cung cấp mục từ điển cho từ đã sửa thay vì từ sai.
@@ -574,13 +624,13 @@
             }
 
             if (data.usage_notes) {
-                // Use pre-wrap to preserve line breaks from the API response
-                htmlContent += `<div class="result-section"><h3>Ghi chú sử dụng</h3><div class="result-item"><p class="formatted-text-block">${data.usage_notes}</p></div></div>`;
+                // Use innerHTML to render HTML tags from the API response
+                htmlContent += `<div class="result-section"><h3>Ghi chú sử dụng</h3><div class="result-item"><div class="formatted-text-block">${formatNotesAndErrors(data.usage_notes)}</div></div></div>`;
             }
 
             if (data.common_errors) {
-                // Use pre-wrap to preserve line breaks from the API response
-                htmlContent += `<div class="result-section"><h3>Lỗi thường gặp</h3><div class="result-item"><p class="formatted-text-block">${data.common_errors}</p></div></div>`;
+                // Use innerHTML to render HTML tags from the API response
+                htmlContent += `<div class="result-section"><h3>Lỗi thường gặp</h3><div class="result-item"><div class="formatted-text-block">${formatNotesAndErrors(data.common_errors)}</div></div></div>`;
             }
 
             if (data.related_structures && data.related_structures.length > 0) {
